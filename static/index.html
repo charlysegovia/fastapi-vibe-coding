@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FastAPI Vibe Coding</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 2.5rem;
+            font-weight: 300;
+        }
+
+        .endpoint {
+            margin-bottom: 30px;
+            padding: 20px;
+            border-radius: 10px;
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+        }
+
+        .endpoint h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 1.2rem;
+        }
+
+        .endpoint p {
+            color: #666;
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            transition: transform 0.2s ease;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+        }
+
+        .response {
+            margin-top: 15px;
+            padding: 15px;
+            background: #e8f5e8;
+            border-radius: 8px;
+            border-left: 4px solid #28a745;
+            display: none;
+        }
+
+        .response.error {
+            background: #ffeaea;
+            border-left-color: #dc3545;
+        }
+
+        .response pre {
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            color: #333;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .status {
+            font-size: 0.8rem;
+            color: #666;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 FastAPI Vibe Coding</h1>
+        
+        <div class="endpoint">
+            <h3>Hello World</h3>
+            <p>Get a simple hello world message from the API.</p>
+            <button onclick="callHelloWorld()">Call Hello World</button>
+            <div id="hello-world-response" class="response"></div>
+        </div>
+
+        <div class="endpoint">
+            <h3>Personalized Greeting</h3>
+            <p>Get a personalized greeting by entering your name.</p>
+            <div class="input-group">
+                <input type="text" id="name-input" placeholder="Enter your name" value="Vishal">
+                <button onclick="callPersonalizedGreeting()">Get Greeting</button>
+            </div>
+            <div id="personalized-response" class="response"></div>
+        </div>
+
+        <div class="endpoint">
+            <h3>Health Check</h3>
+            <p>Check if the API is running properly.</p>
+            <button onclick="callHealthCheck()">Check Health</button>
+            <div id="health-response" class="response"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+
+        async function makeRequest(endpoint, options = {}) {
+            try {
+                const response = await fetch(`${API_BASE}${endpoint}`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...options.headers
+                    },
+                    ...options
+                });
+
+                const data = await response.json();
+                return {
+                    success: response.ok,
+                    status: response.status,
+                    data: data
+                };
+            } catch (error) {
+                return {
+                    success: false,
+                    status: 0,
+                    data: { error: error.message }
+                };
+            }
+        }
+
+        function showResponse(elementId, result) {
+            const element = document.getElementById(elementId);
+            element.style.display = 'block';
+            
+            if (result.success) {
+                element.className = 'response';
+                element.innerHTML = `
+                    <pre>${JSON.stringify(result.data, null, 2)}</pre>
+                    <div class="status">Status: ${result.status}</div>
+                `;
+            } else {
+                element.className = 'response error';
+                element.innerHTML = `
+                    <pre>Error: ${JSON.stringify(result.data, null, 2)}</pre>
+                    <div class="status">Status: ${result.status}</div>
+                `;
+            }
+        }
+
+        async function callHelloWorld() {
+            const result = await makeRequest('/api/hello');
+            showResponse('hello-world-response', result);
+        }
+
+        async function callPersonalizedGreeting() {
+            const name = document.getElementById('name-input').value.trim();
+            if (!name) {
+                alert('Please enter a name');
+                return;
+            }
+            
+            const result = await makeRequest(`/hello/${encodeURIComponent(name)}`);
+            showResponse('personalized-response', result);
+        }
+
+        async function callHealthCheck() {
+            const result = await makeRequest('/health');
+            showResponse('health-response', result);
+        }
+
+        // Auto-call hello world on page load
+        window.addEventListener('load', () => {
+            setTimeout(callHelloWorld, 500);
+        });
+    </script>
+</body>
+</html> 
