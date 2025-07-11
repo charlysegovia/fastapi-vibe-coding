@@ -412,11 +412,12 @@
                             Upload
                         </button>
                     </div>
-                    <div class="document-info" id="document-info">
-                        <h4>📋 Document Information</h4>
-                        <p id="document-name"></p>
-                        <p id="document-preview"></p>
-                    </div>
+                                    <div class="document-info" id="document-info">
+                    <h4>📋 Document Information</h4>
+                    <p id="document-name"></p>
+                    <p id="document-preview"></p>
+                    <p id="rag-status"></p>
+                </div>
                 </div>
             </div>
             
@@ -537,6 +538,7 @@
                 if (data.success) {
                     documentName.textContent = `📄 ${data.filename}`;
                     documentPreview.textContent = data.content_preview;
+                    document.getElementById('rag-status').textContent = `🤖 ${data.rag_status}`;
                     documentInfo.style.display = 'block';
                     updateStatus('document-status', true);
                     addMessage(`✅ Document "${data.filename}" uploaded successfully! You can now ask questions about it.`, 'bot');
