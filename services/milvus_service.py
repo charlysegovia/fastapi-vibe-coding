@@ -2,6 +2,7 @@ import os
 from pymilvus import Collection, CollectionSchema, FieldSchema, DataType, connections, utility
 from typing import List, Dict, Any
 import logging
+from pymilvus.exceptions import MilvusException
 
 MILVUS_URI = os.getenv("MILVUS_URI")
 MILVUS_TOKEN = os.getenv("MILVUS_TOKEN")
@@ -23,7 +24,25 @@ async def init_milvus():
         ]
         schema = CollectionSchema(fields, description="RAG PDF chunks")
         Collection(COLLECTION_NAME, schema)
-    return Collection(COLLECTION_NAME)
+    collection = Collection(COLLECTION_NAME)
+    # Ensure index exists on embedding field
+    if not any(idx.field_name == "embedding" for idx in collection.indexes):
+        logging.info("Creating index on embedding field...")
+        collection.create_index(
+            field_name="embedding",
+            index_params={
+                "index_type": "IVF_FLAT",
+                "metric_type": "IP",
+                "params": {"nlist": 128}
+            }
+        )
+    # Always load the collection (idempotent)
+    try:
+        collection.load()
+    except MilvusException as e:
+        logging.error(f"Failed to load collection: {e}")
+        raise
+    return collection
 
 async def insert_embeddings(collection: Collection, embeddings: List[Dict[str, Any]]):
     """Insert embeddings and metadata into the collection."""
@@ -38,23 +57,40 @@ async def insert_embeddings(collection: Collection, embeddings: List[Dict[str, A
     collection.insert(data)
     collection.flush()
 
-async def search_similar(collection: Collection, query_vector: List[float], filename: str, top_k: int) -> List[Dict[str, Any]]:
-    """Search for the top_k most similar chunks for a given document."""
-    results = collection.search(
-        data=[query_vector],
-        anns_field="embedding",
-        param={"metric_type": "IP", "params": {"nprobe": 8}},
-        limit=top_k,
-        expr=f"filename == '{filename}'"
-    )
-    hits = results[0]
-    return [
-        {
-            "chunk_id": hit.entity.get("chunk_id"),
-            "page_number": hit.entity.get("page_number"),
-            "text": hit.entity.get("text"),
-            "filename": hit.entity.get("filename"),
-            "score": hit.distance
-        }
-        for hit in hits
-    ] 
+async def search_similar(collection: Collection, query_vector: List[float], top_k: int) -> List[Dict[str, Any]]:
+    """Search for the top_k most relevant chunks across all documents."""
+    try:
+        results = collection.search(
+            data=[query_vector],
+            anns_field="embedding",
+            param={"metric_type": "IP", "params": {"nprobe": 8}},
+            limit=top_k,
+            output_fields=["chunk_id", "doc_id", "filename", "page_number", "text"]
+        )
+        hits = results[0]
+        return [
+            {
+                "chunk_id": hit.entity.get("chunk_id"),
+                "page_number": hit.entity.get("page_number"),
+                "text": hit.entity.get("text"),
+                "filename": hit.entity.get("filename"),
+                "score": hit.distance
+            }
+            for hit in hits
+        ]
+    except MilvusException as e:
+        logging.error(f"Milvus search failed: {e}")
+        raise
+
+async def milvus_status() -> Dict[str, str]:
+    """Check Milvus connection and collection status."""
+    try:
+        connections.connect(uri=MILVUS_URI, token=MILVUS_TOKEN)
+        status = {"connected": "true"}
+        if utility.has_collection(COLLECTION_NAME):
+            status["collection"] = "ready"
+        else:
+            status["collection"] = "missing"
+        return status
+    except Exception as e:
+        return {"connected": "false", "error": str(e)} 

@@ -5,6 +5,7 @@ from services.embedding_service import get_embedding
 from services.milvus_service import init_milvus, insert_embeddings
 import uuid
 import logging
+from pymilvus.exceptions import MilvusException
 
 router = APIRouter()
 
@@ -13,7 +14,7 @@ MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
 @router.post("/upload")
 async def upload_pdf(request: Request, file: UploadFile = File(...)):
     """
-    Upload a PDF file, split it by page, generate embeddings, and store them in Milvus.
+    Upload a PDF file, split it by page, generate embeddings, and store them in the shared Milvus collection.
     Returns the filename, doc_id, and number of pages processed.
     """
     if file.content_type != "application/pdf":
@@ -51,12 +52,15 @@ async def upload_pdf(request: Request, file: UploadFile = File(...)):
         })
     if not embeddings:
         raise HTTPException(status_code=400, detail="No valid text found in PDF.")
-    # Store in Milvus
+    # Store in Milvus (shared collection)
     try:
         collection = await init_milvus()
         await insert_embeddings(collection, embeddings)
-    except Exception as e:
+    except MilvusException as e:
         logging.error(f"Milvus insert failed: {e}")
-        raise HTTPException(status_code=500, detail="Vector DB error.")
+        raise HTTPException(status_code=500, detail=f"Vector DB error: {e}")
+    except Exception as e:
+        logging.error(f"Unexpected error during Milvus insert: {e}")
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {e}")
     logging.info(f"Upload complete: {filename} (pages={len(embeddings)})")
     return {"filename": filename, "doc_id": doc_id, "pages": len(embeddings)} 

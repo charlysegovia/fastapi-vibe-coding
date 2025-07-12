@@ -1,9 +1,9 @@
 from pydantic import BaseModel, Field
-from typing import List
+from typing import List, Optional
 
 class QueryRequest(BaseModel):
     question: str = Field(..., description="User question")
-    filename: str = Field(..., description="Document filename to query")
+    filename: Optional[str] = Field(None, description="Document filename to query (optional)")
     top_k: int = Field(3, description="Number of chunks to retrieve")
 
 class SourceChunk(BaseModel):

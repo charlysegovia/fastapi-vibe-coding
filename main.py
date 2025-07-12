@@ -1,8 +1,10 @@
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 from contextlib import asynccontextmanager
 import logging
+from fastapi.staticfiles import StaticFiles
 
 # Load environment variables
 load_dotenv()
@@ -16,7 +18,7 @@ logging.basicConfig(
 
 # Lifespan context manager for global resources
 @asynccontextmanager
-def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI):
     # Initialize Milvus and OpenAI clients here if needed
     # Store them in app.state
     yield
@@ -24,12 +26,27 @@ def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+# Global exception handler
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Handle all unhandled exceptions and return JSON error responses."""
+    logging.error(f"Unhandled exception: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": f"Internal server error: {str(exc)}",
+            "type": type(exc).__name__
+        }
+    )
+
 from routers.upload_routes import router as upload_router
 from routers.query_routes import router as query_router
 
 # Mount routers
 app.include_router(upload_router)
 app.include_router(query_router)
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/")
 def root():

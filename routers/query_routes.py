@@ -5,6 +5,7 @@ from services.milvus_service import init_milvus, search_similar
 import os
 import httpx
 import logging
+import asyncio
 
 router = APIRouter()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -13,35 +14,50 @@ CHAT_MODEL = "gpt-3.5-turbo"
 @router.post("/query", response_model=QueryResponse)
 async def query_rag(request: Request, body: QueryRequest):
     """
-    Query a document using RAG: embed question, search Milvus, and get answer from OpenAI.
-    Returns the answer and the source chunks used.
+    Query the RAG system: embed question, search Milvus across all documents, and get answer from OpenAI.
+    Returns the answer and the source chunks used, including all filenames.
     """
-    logging.info(f"Received query for file: {body.filename}")
+    logging.info(f"Received query: {body.question}")
     # Embed the question
     try:
         q_vector = await get_embedding(body.question)
     except Exception as e:
         logging.error(f"Embedding failed: {e}")
-        raise HTTPException(status_code=500, detail="Embedding service error.")
-    # Search Milvus for similar chunks
-    try:
-        collection = await init_milvus()
-        hits = await search_similar(collection, q_vector, body.filename, body.top_k)
-    except Exception as e:
-        logging.error(f"Milvus search failed: {e}")
-        raise HTTPException(status_code=500, detail="Vector DB error.")
+        raise HTTPException(status_code=500, detail=f"Embedding service error: {e}")
+    # Search Milvus for similar chunks (with retry)
+    retries = 2
+    for attempt in range(retries + 1):
+        try:
+            collection = await init_milvus()
+            hits = await search_similar(collection, q_vector, body.top_k)
+            break
+        except Exception as e:
+            logging.error(f"Milvus search failed (attempt {attempt+1}): {e}")
+            if attempt == retries:
+                raise HTTPException(status_code=500, detail=f"Vector DB error: {e}")
+            await asyncio.sleep(2 ** attempt)
+    
     if not hits:
         raise HTTPException(status_code=404, detail="No relevant chunks found.")
+    
+    # Debug: Log the raw hits to see what data we're getting
+    logging.info(f"Raw hits from Milvus: {hits}")
+    for i, hit in enumerate(hits):
+        logging.info(f"Hit {i}: chunk_id={hit.get('chunk_id')}, page_number={hit.get('page_number')}, filename={hit.get('filename')}, text_length={len(hit.get('text', '')) if hit.get('text') else 0}")
+    
     # Build context for OpenAI
     context = "\n".join([
-        f"[Page {h['page_number']}] {h['text']}" for h in hits
+        f"[Page {h['page_number']}] {h['text']} (File: {h['filename']})" for h in hits
     ])
+    filenames = sorted(set(h["filename"] for h in hits if h["filename"] is not None))
+    if not filenames:
+        filenames = ["Unknown"]
     prompt = (
         f"You are an assistant. Use only the following document pages to answer.\n"
-        f"Document: {body.filename}\n"
+        f"Documents: {', '.join(filenames)}\n"
         f"Pages:\n{context}\n"
         f"Question: {body.question}\n"
-        f"In your answer, specify which document and pages you used."
+        f"In your answer, specify which documents and pages you used."
     )
     # Call OpenAI chat completion
     try:
@@ -62,14 +78,21 @@ async def query_rag(request: Request, body: QueryRequest):
             answer = resp.json()["choices"][0]["message"]["content"]
     except Exception as e:
         logging.error(f"OpenAI chat failed: {e}")
-        raise HTTPException(status_code=500, detail="LLM service error.")
+        raise HTTPException(status_code=500, detail=f"LLM service error: {e}")
     # Build response
-    sources = [
-        SourceChunk(
+    sources = []
+    for h in hits:
+        # Skip hits with None values
+        if h["chunk_id"] is None or h["page_number"] is None or h["text"] is None or h["filename"] is None:
+            continue
+        sources.append(SourceChunk(
             chunk_id=h["chunk_id"],
             page_number=h["page_number"],
             text=h["text"],
             filename=h["filename"]
-        ) for h in hits
-    ]
+        ))
+    
+    if not sources:
+        raise HTTPException(status_code=404, detail="No valid source chunks found.")
+    
     return QueryResponse(answer=answer, sources=sources) 

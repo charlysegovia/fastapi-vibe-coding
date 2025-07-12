@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FastAPI RAG Demo</title>
+    <style>
+        body {
+            background: #e3f0fc;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            color: #234567;
+            margin: 0;
+            padding: 0;
+        }
+        .layout {
+            display: flex;
+            min-height: 100vh;
+        }
+        .sidebar {
+            width: 200px;
+            background: #d0e6fa;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 32px 0 0 0;
+            box-shadow: 2px 0 12px rgba(60, 120, 180, 0.06);
+        }
+        .sidebar h2 {
+            color: #3a6ea5;
+            margin-bottom: 32px;
+            font-size: 1.3em;
+        }
+        .menu-btn {
+            width: 140px;
+            background: none;
+            border: none;
+            color: #234567;
+            font-size: 1.1em;
+            padding: 12px 0;
+            margin-bottom: 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .menu-btn.active, .menu-btn:hover {
+            background: #b3d1f3;
+            color: #3a6ea5;
+        }
+        .status-row {
+            margin-top: auto;
+            margin-bottom: 32px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .status-dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #c0c0c0;
+            border: 2px solid #fff;
+            box-shadow: 0 0 4px #b3d1f3;
+        }
+        .status-dot.online {
+            background: #4ecb71;
+        }
+        .status-dot.offline {
+            background: #e57373;
+        }
+        .main {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            width: 100%;
+            max-width: 480px;
+            background: #f7fbff;
+            border-radius: 16px;
+            box-shadow: 0 4px 24px rgba(60, 120, 180, 0.08);
+            padding: 32px 24px;
+            margin: 40px 0;
+        }
+        h1 {
+            text-align: center;
+            color: #3a6ea5;
+            margin-bottom: 24px;
+        }
+        .section {
+            margin-bottom: 32px;
+        }
+        label {
+            font-weight: 500;
+            color: #3a6ea5;
+        }
+        input[type="file"], input[type="text"], select {
+            width: 100%;
+            padding: 10px;
+            margin: 8px 0 16px 0;
+            border: 1px solid #b3d1f3;
+            border-radius: 8px;
+            background: #eaf4fd;
+        }
+        button {
+            background: #6db3f2;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 12px 24px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background: #3a6ea5;
+        }
+        .result, .sources {
+            background: #eaf4fd;
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 16px;
+            color: #234567;
+        }
+        .sources {
+            font-size: 0.95em;
+        }
+        .error {
+            color: #c00;
+            margin-top: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="layout">
+        <div class="sidebar">
+            <h2>RAG Demo</h2>
+            <button class="menu-btn active" id="menu-upload">Upload PDF</button>
+            <button class="menu-btn" id="menu-ask">Ask a Question</button>
+            <div class="status-row">
+                <span class="status-dot" id="milvus-dot"></span>
+                <span id="milvus-status-text">Checking Milvus...</span>
+            </div>
+        </div>
+        <div class="main">
+            <div class="container" id="upload-section">
+                <h1>Upload PDF</h1>
+                <form id="upload-form">
+                    <label for="pdf-file">PDF file</label>
+                    <input type="file" id="pdf-file" name="file" accept="application/pdf" required />
+                    <button type="submit">Upload</button>
+                </form>
+                <div id="upload-result"></div>
+            </div>
+            <div class="container" id="ask-section" style="display:none;">
+                <h1>Ask a Question</h1>
+                <form id="query-form">
+                    <label for="question">Your question</label>
+                    <input type="text" id="question" name="question" placeholder="Type your question here..." required />
+                    <label for="top-k">Top K results</label>
+                    <input type="number" id="top-k" name="top_k" min="1" max="10" value="3" required />
+                    <button type="submit">Ask</button>
+                </form>
+                <div id="query-result"></div>
+            </div>
+        </div>
+    </div>
+    <script>
+        // Sidebar menu logic
+        const menuUpload = document.getElementById('menu-upload');
+        const menuAsk = document.getElementById('menu-ask');
+        const uploadSection = document.getElementById('upload-section');
+        const askSection = document.getElementById('ask-section');
+        menuUpload.onclick = () => {
+            menuUpload.classList.add('active');
+            menuAsk.classList.remove('active');
+            uploadSection.style.display = '';
+            askSection.style.display = 'none';
+        };
+        menuAsk.onclick = () => {
+            menuAsk.classList.add('active');
+            menuUpload.classList.remove('active');
+            uploadSection.style.display = 'none';
+            askSection.style.display = '';
+        };
+
+        // Milvus status logic
+        const milvusDot = document.getElementById('milvus-dot');
+        const milvusStatusText = document.getElementById('milvus-status-text');
+        let milvusTries = 0;
+        async function checkMilvusStatus() {
+            try {
+                const resp = await fetch('/');
+                if (!resp.ok) throw new Error('Server error');
+                milvusDot.classList.remove('offline');
+                milvusDot.classList.add('online');
+                milvusStatusText.textContent = 'Milvus: Connected';
+                milvusTries = 0;
+            } catch (err) {
+                milvusDot.classList.remove('online');
+                milvusDot.classList.add('offline');
+                milvusStatusText.textContent = 'Milvus: Disconnected';
+                if (milvusTries < 2) {
+                    milvusTries++;
+                    setTimeout(checkMilvusStatus, 1000 * Math.pow(2, milvusTries));
+                } else {
+                    milvusStatusText.textContent = 'Milvus: Connection failed';
+                }
+            }
+        }
+        checkMilvusStatus();
+        setInterval(checkMilvusStatus, 10000);
+
+        // Handle PDF upload
+        document.getElementById('upload-form').onsubmit = async function(e) {
+            e.preventDefault();
+            const fileInput = document.getElementById('pdf-file');
+            const resultDiv = document.getElementById('upload-result');
+            resultDiv.textContent = 'Uploading...';
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            try {
+                const resp = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await resp.json();
+                if (resp.ok) {
+                    resultDiv.innerHTML = `<b>Upload successful!</b><br>Filename: <code>${data.filename}</code><br>Document ID: <code>${data.doc_id}</code><br>Pages: <code>${data.pages}</code>`;
+                } else {
+                    resultDiv.innerHTML = `<span class='error'>${data.detail || 'Upload failed.'}</span>`;
+                }
+            } catch (err) {
+                resultDiv.innerHTML = `<span class='error'>Error: ${err}</span>`;
+            }
+        };
+        // Handle RAG query
+        document.getElementById('query-form').onsubmit = async function(e) {
+            e.preventDefault();
+            const question = document.getElementById('question').value;
+            const top_k = parseInt(document.getElementById('top-k').value, 10);
+            const resultDiv = document.getElementById('query-result');
+            resultDiv.textContent = 'Querying...';
+            try {
+                const resp = await fetch('/query', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ question, top_k })
+                });
+                let data;
+                try {
+                    data = await resp.json();
+                } catch (jsonErr) {
+                    // Cannot parse JSON, show generic error
+                    console.log('Non-JSON error response');
+                    resultDiv.innerHTML = `<span class='error'>HTTP ${resp.status}: Unable to parse error response.</span>`;
+                    return;
+                }
+                if (resp.ok) {
+                    resultDiv.innerHTML = `<div class='result'><b>Answer:</b><br>${data.answer}</div>`;
+                    if (data.sources && data.sources.length) {
+                        resultDiv.innerHTML += `<div class='sources'><b>Sources:</b><ul>` +
+                            data.sources.map(s => `<li>Page <b>${s.page_number}</b> in <code>${s.filename}</code></li>`).join('') +
+                            `</ul></div>`;
+                    }
+                } else {
+                    let errorMsg = '';
+                    if (data && typeof data === 'object') {
+                        if (data.detail) {
+                            if (Array.isArray(data.detail)) {
+                                // Pretty-print validation errors
+                                errorMsg = data.detail.map(e => `${e.loc ? e.loc.join('.') + ': ' : ''}${e.msg}`).join('<br>');
+                            } else {
+                                errorMsg = data.detail;
+                            }
+                        } else {
+                            errorMsg = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                        }
+                    } else {
+                        errorMsg = String(data);
+                    }
+                    console.log('Error response:', data);
+                    resultDiv.innerHTML = `<span class='error'>HTTP ${resp.status}: ${errorMsg || 'Unknown error'}</span>`;
+                }
+            } catch (err) {
+                console.log('Fetch error:', err);
+                resultDiv.innerHTML = `<span class='error'>Error: ${err && err.message ? err.message : err || 'Unknown error'}</span>`;
+            }
+        };
+    </script>
+</body>
+</html> 

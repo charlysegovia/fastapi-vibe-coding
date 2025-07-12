@@ -37,6 +37,13 @@ This project implements a Retrieval-Augmented Generation (RAG) workflow using Fa
 uvicorn main:app --reload
 ```
 
+## Web Interface
+
+A simple graphical interface is available for uploading PDF files and querying the RAG system.
+
+- Open your browser and go to: [http://localhost:8000/static/index.html](http://localhost:8000/static/index.html)
+- You can upload a PDF and make queries directly from this page.
+
 ## Endpoints
 
 ### 1. Upload PDF Document
