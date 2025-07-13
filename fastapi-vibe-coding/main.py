@@ -4,27 +4,27 @@ from dotenv import load_dotenv
 from contextlib import asynccontextmanager
 import logging
 
-# Cargar variables de entorno
+# Load environment variables
 load_dotenv()
 
-# Configuración de logging a archivo
+# Configure logging to file
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
     handlers=[logging.FileHandler("app.log"), logging.StreamHandler()]
 )
 
-# Lifespan context manager para recursos globales
+# Lifespan context manager for global resources
 @asynccontextmanager
 def lifespan(app: FastAPI):
-    # Aquí se inicializarán los clientes de Milvus y OpenAI
-    # y se almacenarán en app.state
+    # Here Milvus and OpenAI clients will be initialized
+    # and stored in app.state
     yield
-    # Aquí se liberarán recursos si es necesario
+    # Here resources will be released if needed
 
 app = FastAPI(lifespan=lifespan)
 
-# Importar y montar routers (a implementar)
+# Import and mount routers (to be implemented)
 # from routers.upload_routes import router as upload_router
 # from routers.query_routes import router as query_router
 # app.include_router(upload_router)
