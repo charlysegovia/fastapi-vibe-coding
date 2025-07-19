@@ -1,0 +1,12 @@
+fastapi
+uvicorn[standard]
+pydantic>=2.0
+python-dotenv
+httpx[http2]
+pymilvus>=2.3.0
+openai>=1.0.0
+pytest
+pytest-asyncio
+python-multipart
+scikit-learn>=1.0.0
+numpy>=1.21.0 

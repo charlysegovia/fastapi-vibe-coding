@@ -3,290 +3,629 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FastAPI RAG Demo</title>
+    <title>GitHub RAG System</title>
     <style>
-        body {
-            background: #e3f0fc;
-            font-family: 'Segoe UI', Arial, sans-serif;
-            color: #234567;
+        * {
             margin: 0;
             padding: 0;
+            box-sizing: border-box;
         }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f6f8fa;
+            color: #24292e;
+        }
+        
         .layout {
             display: flex;
             min-height: 100vh;
         }
+        
         .sidebar {
-            width: 200px;
-            background: #d0e6fa;
+            width: 250px;
+            background: #24292e;
+            color: white;
+            padding: 20px;
             display: flex;
             flex-direction: column;
-            align-items: center;
-            padding: 32px 0 0 0;
-            box-shadow: 2px 0 12px rgba(60, 120, 180, 0.06);
         }
+        
         .sidebar h2 {
-            color: #3a6ea5;
-            margin-bottom: 32px;
-            font-size: 1.3em;
+            margin-bottom: 20px;
+            color: #58a6ff;
         }
+        
         .menu-btn {
-            width: 140px;
             background: none;
             border: none;
-            color: #234567;
-            font-size: 1.1em;
-            padding: 12px 0;
-            margin-bottom: 12px;
-            border-radius: 8px;
+            color: #c9d1d9;
+            padding: 10px 15px;
+            text-align: left;
             cursor: pointer;
-            transition: background 0.2s;
+            border-radius: 6px;
+            margin-bottom: 5px;
+            transition: background-color 0.2s;
         }
-        .menu-btn.active, .menu-btn:hover {
-            background: #b3d1f3;
-            color: #3a6ea5;
+        
+        .menu-btn:hover {
+            background: #30363d;
         }
+        
+        .menu-btn.active {
+            background: #58a6ff;
+            color: white;
+        }
+        
         .status-row {
             margin-top: auto;
-            margin-bottom: 32px;
+            padding: 10px;
+            background: #30363d;
+            border-radius: 6px;
             display: flex;
             align-items: center;
             gap: 8px;
         }
+        
         .status-dot {
-            width: 14px;
-            height: 14px;
+            width: 8px;
+            height: 8px;
             border-radius: 50%;
-            background: #c0c0c0;
-            border: 2px solid #fff;
-            box-shadow: 0 0 4px #b3d1f3;
+            background: #f85149;
         }
+        
         .status-dot.online {
-            background: #4ecb71;
+            background: #3fb950;
         }
-        .status-dot.offline {
-            background: #e57373;
-        }
+        
         .main {
             flex: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            padding: 30px;
+            overflow-y: auto;
         }
+        
         .container {
-            width: 100%;
-            max-width: 480px;
-            background: #f7fbff;
-            border-radius: 16px;
-            box-shadow: 0 4px 24px rgba(60, 120, 180, 0.08);
-            padding: 32px 24px;
-            margin: 40px 0;
+            max-width: 800px;
+            margin: 0 auto;
         }
-        h1 {
-            text-align: center;
-            color: #3a6ea5;
-            margin-bottom: 24px;
+        
+        .container h1 {
+            margin-bottom: 30px;
+            color: #24292e;
         }
-        .section {
-            margin-bottom: 32px;
+        
+        form {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
         }
+        
         label {
-            font-weight: 500;
-            color: #3a6ea5;
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #24292e;
         }
-        input[type="file"], input[type="text"], select {
+        
+        input, select, button {
             width: 100%;
-            padding: 10px;
-            margin: 8px 0 16px 0;
-            border: 1px solid #b3d1f3;
-            border-radius: 8px;
-            background: #eaf4fd;
+            padding: 12px;
+            border: 1px solid #d0d7de;
+            border-radius: 6px;
+            font-size: 14px;
+            margin-bottom: 20px;
         }
+        
+        input:focus, select:focus {
+            outline: none;
+            border-color: #58a6ff;
+            box-shadow: 0 0 0 3px rgba(56, 139, 253, 0.15);
+        }
+        
         button {
-            background: #6db3f2;
-            color: #fff;
+            background: #2da44e;
+            color: white;
             border: none;
-            border-radius: 8px;
-            padding: 12px 24px;
-            font-size: 1rem;
             cursor: pointer;
-            transition: background 0.2s;
+            font-weight: 600;
+            transition: background-color 0.2s;
         }
+        
         button:hover {
-            background: #3a6ea5;
+            background: #2c974b;
         }
-        .result, .sources {
-            background: #eaf4fd;
-            border-radius: 8px;
-            padding: 16px;
-            margin-top: 16px;
-            color: #234567;
+        
+        button:disabled {
+            background: #656d76;
+            cursor: not-allowed;
         }
-        .sources {
-            font-size: 0.95em;
+        
+        .result {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-top: 20px;
         }
+        
         .error {
-            color: #c00;
-            margin-top: 12px;
+            color: #cf222e;
+            background: #ffebe9;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #ff8182;
+        }
+        
+        .success {
+            color: #116329;
+            background: #dafbe1;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #4ac555;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #f6f8fa;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: #2da44e;
+            transition: width 0.3s ease;
+        }
+        
+        .repo-list {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #d0d7de;
+            border-radius: 6px;
+        }
+        
+        .repo-item {
+            padding: 10px;
+            border-bottom: 1px solid #f6f8fa;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .repo-item:hover {
+            background: #f6f8fa;
+        }
+        
+        .repo-item.selected {
+            background: #ddf4d8;
+            border-left: 3px solid #2da44e;
+        }
+        
+        .repo-name {
+            font-weight: 600;
+            color: #0969da;
+        }
+        
+        .repo-desc {
+            font-size: 12px;
+            color: #656d76;
+            margin-top: 4px;
+        }
+        
+        .file-list {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #d0d7de;
+            border-radius: 6px;
+        }
+        
+        .file-item {
+            padding: 8px 12px;
+            border-bottom: 1px solid #f6f8fa;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            font-size: 12px;
+        }
+        
+        .file-path {
+            color: #0969da;
+        }
+        
+        .file-size {
+            color: #656d76;
+            float: right;
+        }
+        
+        .source-chunk {
+            background: #f6f8fa;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 10px 0;
+            border-left: 3px solid #58a6ff;
+        }
+        
+        .source-header {
+            font-weight: 600;
+            color: #0969da;
+            margin-bottom: 8px;
+        }
+        
+        .source-text {
+            font-size: 14px;
+            line-height: 1.5;
+            color: #24292e;
+        }
+        
+        .source-meta {
+            font-size: 12px;
+            color: #656d76;
+            margin-top: 8px;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .stat-number {
+            font-size: 24px;
+            font-weight: 700;
+            color: #0969da;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: #656d76;
+            margin-top: 5px;
         }
     </style>
 </head>
 <body>
     <div class="layout">
         <div class="sidebar">
-            <h2>RAG Demo</h2>
-            <button class="menu-btn active" id="menu-upload">Upload PDF</button>
-            <button class="menu-btn" id="menu-ask">Ask a Question</button>
+            <h2>GitHub RAG</h2>
+            <button class="menu-btn active" id="menu-repos">Repositories</button>
+            <button class="menu-btn" id="menu-process">Process Repo</button>
+            <button class="menu-btn" id="menu-ask">Ask Questions</button>
+            <button class="menu-btn" id="menu-stats">Statistics</button>
             <div class="status-row">
-                <span class="status-dot" id="milvus-dot"></span>
-                <span id="milvus-status-text">Checking Milvus...</span>
+                <span class="status-dot" id="status-dot"></span>
+                <span id="status-text">Checking...</span>
             </div>
         </div>
+        
         <div class="main">
-            <div class="container" id="upload-section">
-                <h1>Upload PDF</h1>
-                <form id="upload-form">
-                    <label for="pdf-file">PDF file</label>
-                    <input type="file" id="pdf-file" name="file" accept="application/pdf" required />
-                    <button type="submit">Upload</button>
-                </form>
-                <div id="upload-result"></div>
+            <!-- Repositories Section -->
+            <div class="container" id="repos-section">
+                <h1>GitHub Repositories</h1>
+                <button id="refresh-repos">Refresh Repositories</button>
+                <div id="repos-result"></div>
             </div>
+            
+            <!-- Process Repository Section -->
+            <div class="container" id="process-section" style="display:none;">
+                <h1>Process Repository</h1>
+                <form id="process-form">
+                    <label for="repo-select">Select Repository</label>
+                    <select id="repo-select" required>
+                        <option value="">Choose a repository...</option>
+                    </select>
+                    <button type="submit">Process Repository</button>
+                </form>
+                <div id="process-result"></div>
+                <div class="progress-bar" id="progress-bar" style="display:none;">
+                    <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
+                </div>
+            </div>
+            
+            <!-- Ask Questions Section -->
             <div class="container" id="ask-section" style="display:none;">
-                <h1>Ask a Question</h1>
+                <h1>Ask Questions</h1>
                 <form id="query-form">
                     <label for="question">Your question</label>
-                    <input type="text" id="question" name="question" placeholder="Type your question here..." required />
-                    <label for="top-k">Top K results</label>
-                    <input type="number" id="top-k" name="top_k" min="1" max="10" value="3" required />
-                    <button type="submit">Ask</button>
+                    <input type="text" id="question" name="question" placeholder="Ask about your repositories..." required />
+                    <label for="top-k">Number of results</label>
+                    <input type="number" id="top-k" name="top_k" min="1" max="20" value="5" required />
+                    <button type="submit">Ask Question</button>
                 </form>
                 <div id="query-result"></div>
             </div>
+            
+            <!-- Statistics Section -->
+            <div class="container" id="stats-section" style="display:none;">
+                <h1>System Statistics</h1>
+                <button id="refresh-stats">Refresh Statistics</button>
+                <div id="stats-result"></div>
+            </div>
         </div>
     </div>
+    
     <script>
-        // Sidebar menu logic
-        const menuUpload = document.getElementById('menu-upload');
-        const menuAsk = document.getElementById('menu-ask');
-        const uploadSection = document.getElementById('upload-section');
-        const askSection = document.getElementById('ask-section');
-        menuUpload.onclick = () => {
-            menuUpload.classList.add('active');
-            menuAsk.classList.remove('active');
-            uploadSection.style.display = '';
-            askSection.style.display = 'none';
-        };
-        menuAsk.onclick = () => {
-            menuAsk.classList.add('active');
-            menuUpload.classList.remove('active');
-            uploadSection.style.display = 'none';
-            askSection.style.display = '';
-        };
-
-        // Milvus status logic
-        const milvusDot = document.getElementById('milvus-dot');
-        const milvusStatusText = document.getElementById('milvus-status-text');
-        let milvusTries = 0;
-        async function checkMilvusStatus() {
+        // Menu navigation
+        const menuButtons = ['repos', 'process', 'ask', 'stats'];
+        const sections = ['repos-section', 'process-section', 'ask-section', 'stats-section'];
+        
+        menuButtons.forEach((btn, index) => {
+            document.getElementById(`menu-${btn}`).onclick = () => {
+                menuButtons.forEach(b => document.getElementById(`menu-${b}`).classList.remove('active'));
+                sections.forEach(s => document.getElementById(s).style.display = 'none');
+                
+                document.getElementById(`menu-${btn}`).classList.add('active');
+                document.getElementById(sections[index]).style.display = '';
+                
+                // Load data for specific sections
+                if (btn === 'repos') loadRepositories();
+                if (btn === 'stats') loadStatistics();
+            };
+        });
+        
+        // Status checking
+        const statusDot = document.getElementById('status-dot');
+        const statusText = document.getElementById('status-text');
+        
+        async function checkStatus() {
             try {
-                const resp = await fetch('/');
-                if (!resp.ok) throw new Error('Server error');
-                milvusDot.classList.remove('offline');
-                milvusDot.classList.add('online');
-                milvusStatusText.textContent = 'Milvus: Connected';
-                milvusTries = 0;
-            } catch (err) {
-                milvusDot.classList.remove('online');
-                milvusDot.classList.add('offline');
-                milvusStatusText.textContent = 'Milvus: Disconnected';
-                if (milvusTries < 2) {
-                    milvusTries++;
-                    setTimeout(checkMilvusStatus, 1000 * Math.pow(2, milvusTries));
+                const resp = await fetch('/api/health');
+                const data = await resp.json();
+                
+                if (data.status === 'healthy') {
+                    statusDot.classList.remove('offline');
+                    statusDot.classList.add('online');
+                    statusText.textContent = 'System: Online';
                 } else {
-                    milvusStatusText.textContent = 'Milvus: Connection failed';
+                    statusDot.classList.remove('online');
+                    statusDot.classList.add('offline');
+                    statusText.textContent = 'System: Error';
                 }
+            } catch (err) {
+                statusDot.classList.remove('online');
+                statusDot.classList.add('offline');
+                statusText.textContent = 'System: Offline';
             }
         }
-        checkMilvusStatus();
-        setInterval(checkMilvusStatus, 10000);
-
-        // Handle PDF upload
-        document.getElementById('upload-form').onsubmit = async function(e) {
-            e.preventDefault();
-            const fileInput = document.getElementById('pdf-file');
-            const resultDiv = document.getElementById('upload-result');
-            resultDiv.textContent = 'Uploading...';
-            const formData = new FormData();
-            formData.append('file', fileInput.files[0]);
+        
+        checkStatus();
+        setInterval(checkStatus, 10000);
+        
+        // Load repositories
+        async function loadRepositories() {
+            const resultDiv = document.getElementById('repos-result');
+            resultDiv.innerHTML = '<div class="success">Loading repositories...</div>';
+            
             try {
-                const resp = await fetch('/upload', {
-                    method: 'POST',
-                    body: formData
-                });
-                const data = await resp.json();
-                if (resp.ok) {
-                    resultDiv.innerHTML = `<b>Upload successful!</b><br>Filename: <code>${data.filename}</code><br>Document ID: <code>${data.doc_id}</code><br>Pages: <code>${data.pages}</code>`;
-                } else {
-                    resultDiv.innerHTML = `<span class='error'>${data.detail || 'Upload failed.'}</span>`;
-                }
-            } catch (err) {
-                resultDiv.innerHTML = `<span class='error'>Error: ${err}</span>`;
-            }
-        };
-        // Handle RAG query
-        document.getElementById('query-form').onsubmit = async function(e) {
-            e.preventDefault();
-            const question = document.getElementById('question').value;
-            const top_k = parseInt(document.getElementById('top-k').value, 10);
-            const resultDiv = document.getElementById('query-result');
-            resultDiv.textContent = 'Querying...';
-            try {
-                const resp = await fetch('/query', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ question, top_k })
-                });
-                let data;
-                try {
-                    data = await resp.json();
-                } catch (jsonErr) {
-                    // Cannot parse JSON, show generic error
-                    console.log('Non-JSON error response');
-                    resultDiv.innerHTML = `<span class='error'>HTTP ${resp.status}: Unable to parse error response.</span>`;
+                const resp = await fetch('/api/repos');
+                const repos = await resp.json();
+                
+                if (repos.length === 0) {
+                    resultDiv.innerHTML = '<div class="error">No repositories found. Please check your GitHub token and username.</div>';
                     return;
                 }
+                
+                const repoList = document.createElement('div');
+                repoList.className = 'repo-list';
+                
+                repos.forEach(repo => {
+                    const repoItem = document.createElement('div');
+                    repoItem.className = 'repo-item';
+                    repoItem.innerHTML = `
+                        <div class="repo-name">${repo.name}</div>
+                        <div class="repo-desc">${repo.description || 'No description'}</div>
+                    `;
+                    repoItem.onclick = () => selectRepository(repo);
+                    repoList.appendChild(repoItem);
+                });
+                
+                resultDiv.innerHTML = '';
+                resultDiv.appendChild(repoList);
+                
+                // Populate repo select for processing
+                const repoSelect = document.getElementById('repo-select');
+                repoSelect.innerHTML = '<option value="">Choose a repository...</option>';
+                repos.forEach(repo => {
+                    const option = document.createElement('option');
+                    option.value = repo.name;
+                    option.textContent = repo.name;
+                    repoSelect.appendChild(option);
+                });
+                
+            } catch (err) {
+                resultDiv.innerHTML = `<div class="error">Error loading repositories: ${err.message}</div>`;
+            }
+        }
+        
+        // Select repository
+        function selectRepository(repo) {
+            // Remove previous selection
+            document.querySelectorAll('.repo-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            
+            // Add selection to clicked item
+            event.target.closest('.repo-item').classList.add('selected');
+        }
+        
+        // Process repository
+        document.getElementById('process-form').onsubmit = async function(e) {
+            e.preventDefault();
+            
+            const repoName = document.getElementById('repo-select').value;
+            const resultDiv = document.getElementById('process-result');
+            const progressBar = document.getElementById('progress-bar');
+            const progressFill = document.getElementById('progress-fill');
+            
+            if (!repoName) {
+                resultDiv.innerHTML = '<div class="error">Please select a repository.</div>';
+                return;
+            }
+            
+            resultDiv.innerHTML = '<div class="success">Processing repository...</div>';
+            progressBar.style.display = 'block';
+            progressFill.style.width = '0%';
+            
+            try {
+                const resp = await fetch(`/api/process/${repoName}`, {
+                    method: 'POST'
+                });
+                
+                const result = await resp.json();
+                
                 if (resp.ok) {
-                    resultDiv.innerHTML = `<div class='result'><b>Answer:</b><br>${data.answer}</div>`;
-                    if (data.sources && data.sources.length) {
-                        resultDiv.innerHTML += `<div class='sources'><b>Sources:</b><ul>` +
-                            data.sources.map(s => `<li>Page <b>${s.page_number}</b> in <code>${s.filename}</code></li>`).join('') +
-                            `</ul></div>`;
-                    }
+                    progressFill.style.width = '100%';
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <strong>Processing completed!</strong><br>
+                            Repository: ${result.repo_name}<br>
+                            Files processed: ${result.processed_files}/${result.total_files}<br>
+                            Total chunks created: ${result.total_chunks}<br>
+                            Dense chunks: ${result.dense_chunks || 0}<br>
+                            Sparse chunks: ${result.sparse_chunks || 0}<br>
+                            ${result.errors.length > 0 ? `<br><strong>Errors (${result.errors.length}):</strong><br><div style="max-height: 200px; overflow-y: auto; background: #f6f8fa; padding: 10px; border-radius: 4px; font-size: 12px; margin-top: 10px;">${result.errors.map(err => `• ${err}`).join('<br>')}</div>` : ''}
+                        </div>
+                    `;
                 } else {
-                    let errorMsg = '';
-                    if (data && typeof data === 'object') {
-                        if (data.detail) {
-                            if (Array.isArray(data.detail)) {
-                                // Pretty-print validation errors
-                                errorMsg = data.detail.map(e => `${e.loc ? e.loc.join('.') + ': ' : ''}${e.msg}`).join('<br>');
-                            } else {
-                                errorMsg = data.detail;
-                            }
-                        } else {
-                            errorMsg = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
-                        }
-                    } else {
-                        errorMsg = String(data);
-                    }
-                    console.log('Error response:', data);
-                    resultDiv.innerHTML = `<span class='error'>HTTP ${resp.status}: ${errorMsg || 'Unknown error'}</span>`;
+                    resultDiv.innerHTML = `<div class="error">${result.detail || 'Processing failed.'}</div>`;
                 }
             } catch (err) {
-                console.log('Fetch error:', err);
-                resultDiv.innerHTML = `<span class='error'>Error: ${err && err.message ? err.message : err || 'Unknown error'}</span>`;
+                resultDiv.innerHTML = `<div class="error">Error: ${err.message}</div>`;
             }
         };
+        
+        // Ask questions
+        document.getElementById('query-form').onsubmit = async function(e) {
+            e.preventDefault();
+            
+            const question = document.getElementById('question').value;
+            const topK = document.getElementById('top-k').value;
+            const resultDiv = document.getElementById('query-result');
+            
+            resultDiv.innerHTML = '<div class="success">Searching...</div>';
+            
+            try {
+                const resp = await fetch('/api/query', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        question: question,
+                        top_k: parseInt(topK)
+                    })
+                });
+                
+                const result = await resp.json();
+                
+                if (resp.ok) {
+                    let html = `
+                        <div class="result">
+                            <h3>Answer:</h3>
+                            <p>${result.answer}</p>
+                            
+                            <h3>Sources (${result.sources.length}):</h3>
+                    `;
+                    
+                    result.sources.forEach((source, index) => {
+                        html += `
+                            <div class="source-chunk">
+                                <div class="source-header">
+                                    ${source.repo_name}/${source.file_path} (${source.file_language})
+                                </div>
+                                <div class="source-text">${source.text}</div>
+                                <div class="source-meta">
+                                    Score: ${source.score.toFixed(3)} | 
+                                    Type: ${source.chunk_type} | 
+                                    Search: ${source.search_type} |
+                                    Author: ${source.author || 'Unknown'}
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    html += '</div>';
+                    resultDiv.innerHTML = html;
+                } else {
+                    resultDiv.innerHTML = `<div class="error">${result.detail || 'Query failed.'}</div>`;
+                }
+            } catch (err) {
+                resultDiv.innerHTML = `<div class="error">Error: ${err.message}</div>`;
+            }
+        };
+        
+        // Load statistics
+        async function loadStatistics() {
+            const resultDiv = document.getElementById('stats-result');
+            resultDiv.innerHTML = '<div class="success">Loading statistics...</div>';
+            
+            try {
+                const resp = await fetch('/api/search-stats');
+                const stats = await resp.json();
+                
+                let html = `
+                    <div class="stats">
+                        <div class="stat-card">
+                            <div class="stat-number">${stats.total_repositories}</div>
+                            <div class="stat-label">Total Repositories</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number">${stats.processed_repositories}</div>
+                            <div class="stat-label">Processed Repositories</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number">${stats.total_chunks}</div>
+                            <div class="stat-label">Total Chunks</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number">${stats.total_dense_chunks}</div>
+                            <div class="stat-label">Dense Chunks</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number">${stats.total_sparse_chunks}</div>
+                            <div class="stat-label">Sparse Chunks</div>
+                        </div>
+                    </div>
+                    
+                    <h3>Repository Details:</h3>
+                    <div class="repo-list">
+                `;
+                
+                stats.repositories.forEach(repo => {
+                    html += `
+                        <div class="repo-item">
+                            <div class="repo-name">${repo.name}</div>
+                            <div class="repo-desc">
+                                ${repo.description || 'No description'} | 
+                                Language: ${repo.language || 'Unknown'} | 
+                                Chunks: ${repo.total_chunks} (${repo.dense_chunks} dense, ${repo.sparse_chunks} sparse)
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                html += '</div>';
+                resultDiv.innerHTML = html;
+                
+            } catch (err) {
+                resultDiv.innerHTML = `<div class="error">Error loading statistics: ${err.message}</div>`;
+            }
+        }
+        
+        // Refresh buttons
+        document.getElementById('refresh-repos').onclick = loadRepositories;
+        document.getElementById('refresh-stats').onclick = loadStatistics;
+        
+        // Initial load
+        loadRepositories();
     </script>
 </body>
 </html> 

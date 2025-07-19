@@ -1,11 +1,11 @@
 from fastapi import APIRouter, HTTPException, status, Request
 from schemas.query import QueryRequest, QueryResponse, SourceChunk
-from services.embedding_service import get_embedding
-from services.milvus_service import init_milvus, search_similar
+from main_working import get_load_data_service, get_service_status
 import os
 import httpx
 import logging
 import asyncio
+from typing import List, Dict
 
 router = APIRouter()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -14,85 +14,171 @@ CHAT_MODEL = "gpt-3.5-turbo"
 @router.post("/query", response_model=QueryResponse)
 async def query_rag(request: Request, body: QueryRequest):
     """
-    Query the RAG system: embed question, search Milvus across all documents, and get answer from OpenAI.
-    Returns the answer and the source chunks used, including all filenames.
+    Query the RAG system using hybrid search (dense + sparse).
+    Performs semantic search across all processed repositories and generates an answer using OpenAI.
     """
     logging.info(f"Received query: {body.question}")
-    # Embed the question
-    try:
-        q_vector = await get_embedding(body.question)
-    except Exception as e:
-        logging.error(f"Embedding failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Embedding service error: {e}")
-    # Search Milvus for similar chunks (with retry)
-    retries = 2
-    for attempt in range(retries + 1):
-        try:
-            collection = await init_milvus()
-            hits = await search_similar(collection, q_vector, body.top_k)
-            break
-        except Exception as e:
-            logging.error(f"Milvus search failed (attempt {attempt+1}): {e}")
-            if attempt == retries:
-                raise HTTPException(status_code=500, detail=f"Vector DB error: {e}")
-            await asyncio.sleep(2 ** attempt)
     
-    if not hits:
+    # Perform hybrid search
+    try:
+        status = get_service_status()
+        if not status["service_ready"]:
+            raise HTTPException(status_code=503, detail=f"Service not ready. Status: {status}")
+        
+        service = get_load_data_service()
+        search_results = await service.search_hybrid(body.question, body.top_k)
+        logging.info(f"Hybrid search returned {len(search_results['results'])} results")
+    except Exception as e:
+        logging.error(f"Hybrid search failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Search failed: {e}")
+    
+    if not search_results['results']:
         raise HTTPException(status_code=404, detail="No relevant chunks found.")
     
-    # Debug: Log the raw hits to see what data we're getting
-    logging.info(f"Raw hits from Milvus: {hits}")
-    for i, hit in enumerate(hits):
-        logging.info(f"Hit {i}: chunk_id={hit.get('chunk_id')}, page_number={hit.get('page_number')}, filename={hit.get('filename')}, text_length={len(hit.get('text', '')) if hit.get('text') else 0}")
+    # Prepare context from search results
+    context_chunks = []
+    for result in search_results['results']:
+        context_chunks.append({
+            "text": result['text'],
+            "repo_name": result['repo_name'],
+            "file_path": result['file_path'],
+            "chunk_type": result['chunk_type'],
+            "file_language": result['file_language'],
+            "author": result['author'],
+            "score": result['score'],
+            "search_type": result['search_type']
+        })
     
-    # Build context for OpenAI
-    context = "\n".join([
-        f"[Page {h['page_number']}] {h['text']} (File: {h['filename']})" for h in hits
-    ])
-    filenames = sorted(set(h["filename"] for h in hits if h["filename"] is not None))
-    if not filenames:
-        filenames = ["Unknown"]
-    prompt = (
-        f"You are an assistant. Use only the following document pages to answer.\n"
-        f"Documents: {', '.join(filenames)}\n"
-        f"Pages:\n{context}\n"
-        f"Question: {body.question}\n"
-        f"In your answer, specify which documents and pages you used."
-    )
-    # Call OpenAI chat completion
+    # Generate answer using OpenAI
     try:
-        async with httpx.AsyncClient(timeout=60) as client:
-            resp = await client.post(
-                "https://api.openai.com/v1/chat/completions",
-                headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
-                json={
-                    "model": CHAT_MODEL,
-                    "messages": [
-                        {"role": "system", "content": "You are a helpful assistant."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    "temperature": 0.2
-                }
-            )
-            resp.raise_for_status()
-            answer = resp.json()["choices"][0]["message"]["content"]
+        answer = await _generate_answer_with_openai(body.question, context_chunks)
     except Exception as e:
-        logging.error(f"OpenAI chat failed: {e}")
-        raise HTTPException(status_code=500, detail=f"LLM service error: {e}")
-    # Build response
+        logging.error(f"OpenAI answer generation failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Answer generation failed: {e}")
+    
+    # Prepare response
     sources = []
-    for h in hits:
-        # Skip hits with None values
-        if h["chunk_id"] is None or h["page_number"] is None or h["text"] is None or h["filename"] is None:
-            continue
+    for chunk in context_chunks:
         sources.append(SourceChunk(
-            chunk_id=h["chunk_id"],
-            page_number=h["page_number"],
-            text=h["text"],
-            filename=h["filename"]
+            text=chunk['text'][:500] + "..." if len(chunk['text']) > 500 else chunk['text'],
+            repo_name=chunk['repo_name'],
+            file_path=chunk['file_path'],
+            chunk_type=chunk['chunk_type'],
+            file_language=chunk['file_language'],
+            author=chunk['author'],
+            score=chunk['score'],
+            search_type=chunk['search_type']
         ))
     
-    if not sources:
-        raise HTTPException(status_code=404, detail="No valid source chunks found.")
+    return QueryResponse(
+        answer=answer,
+        sources=sources,
+        search_stats={
+            "dense_results": search_results['dense_count'],
+            "sparse_results": search_results['sparse_count'],
+            "total_results": search_results['total_results']
+        }
+    )
+
+async def _generate_answer_with_openai(question: str, context_chunks: List[Dict]) -> str:
+    """Generate an answer using OpenAI based on the retrieved context."""
+    # Prepare context
+    context_text = "\n\n".join([
+        f"Source: {chunk['repo_name']}/{chunk['file_path']} ({chunk['file_language']})\n"
+        f"Author: {chunk['author']}\n"
+        f"Content: {chunk['text']}"
+        for chunk in context_chunks
+    ])
     
-    return QueryResponse(answer=answer, sources=sources) 
+    # Create prompt
+    prompt = f"""You are a helpful assistant that answers questions based on the provided context from GitHub repositories.
+
+Context:
+{context_text}
+
+Question: {question}
+
+Please provide a comprehensive answer based on the context above. If the context doesn't contain enough information to answer the question, say so. Cite specific files and code snippets when relevant.
+
+Answer:"""
+    
+    # Call OpenAI
+    url = "https://api.openai.com/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {OPENAI_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    data = {
+        "model": CHAT_MODEL,
+        "messages": [
+            {"role": "system", "content": "You are a helpful assistant that answers questions based on GitHub repository content."},
+            {"role": "user", "content": prompt}
+        ],
+        "max_tokens": 1000,
+        "temperature": 0.7
+    }
+    
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        response = await client.post(url, json=data, headers=headers)
+        response.raise_for_status()
+        result = response.json()
+        
+        return result["choices"][0]["message"]["content"].strip()
+
+@router.get("/search-stats")
+async def get_search_stats(request: Request) -> Dict:
+    """
+    Get statistics about the search system.
+    Returns information about processed repositories and available data.
+    """
+    try:
+        status = get_service_status()
+        if not status["service_ready"]:
+            raise HTTPException(status_code=503, detail=f"Service not ready. Status: {status}")
+        
+        # Get all repositories
+        service = get_load_data_service()
+        repos = await service.list_repositories()
+        
+        # Get stats for each repository
+        repo_stats = []
+        total_dense_chunks = 0
+        total_sparse_chunks = 0
+        
+        for repo in repos:
+            try:
+                repo_status = await service.get_processing_status(repo['name'])
+                repo_stats.append({
+                    "name": repo['name'],
+                    "description": repo['description'],
+                    "language": repo['language'],
+                    "dense_chunks": status.get('dense_chunks', 0),
+                    "sparse_chunks": status.get('sparse_chunks', 0),
+                    "total_chunks": status.get('total_chunks', 0)
+                })
+                total_dense_chunks += status.get('dense_chunks', 0)
+                total_sparse_chunks += status.get('sparse_chunks', 0)
+            except Exception as e:
+                logging.warning(f"Could not get stats for {repo['name']}: {e}")
+                repo_stats.append({
+                    "name": repo['name'],
+                    "description": repo['description'],
+                    "language": repo['language'],
+                    "dense_chunks": 0,
+                    "sparse_chunks": 0,
+                    "total_chunks": 0,
+                    "error": str(e)
+                })
+        
+        return {
+            "total_repositories": len(repos),
+            "processed_repositories": len([r for r in repo_stats if r.get('total_chunks', 0) > 0]),
+            "total_dense_chunks": total_dense_chunks,
+            "total_sparse_chunks": total_sparse_chunks,
+            "total_chunks": total_dense_chunks + total_sparse_chunks,
+            "repositories": repo_stats
+        }
+        
+    except Exception as e:
+        logging.error(f"Failed to get search stats: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get search stats: {str(e)}") 

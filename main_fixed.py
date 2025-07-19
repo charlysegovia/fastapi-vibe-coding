@@ -2,7 +2,6 @@ import os
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
-from contextlib import asynccontextmanager
 import logging
 from fastapi.staticfiles import StaticFiles
 
@@ -16,14 +15,15 @@ logging.basicConfig(
     handlers=[logging.FileHandler("app.log"), logging.StreamHandler()]
 )
 
-# Global variable for load_data_service
-load_data_service = None
-
+# Create FastAPI app first
 app = FastAPI(
     title="GitHub RAG System",
     description="A RAG system that processes GitHub repositories with dual indexing (dense + sparse)",
     version="2.0.0"
 )
+
+# Global variable for load_data_service
+load_data_service = None
 
 # Initialize load_data_service on startup
 @app.on_event("startup")
