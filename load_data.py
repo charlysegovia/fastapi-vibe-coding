@@ -129,9 +129,18 @@ class LoadDataService:
         logging.info(f"Repository processing complete: {result}")
         return result
         
-    async def search_hybrid(self, query: str, top_k: int = 10) -> Dict[str, Any]:
-        """Perform hybrid search using both dense and sparse collections."""
-        return await self.milvus_service.search_hybrid(query, top_k)
+    async def search_hybrid(self, query: str, top_k: int = 10, enable_reranking: bool = True, 
+                          rerank_top_k: int = 5, show_scores: bool = True, 
+                          show_justification: bool = True) -> Dict[str, Any]:
+        """Perform hybrid search using both dense and sparse collections with optional re-ranking."""
+        return await self.milvus_service.search_hybrid(
+            query=query, 
+            top_k=top_k,
+            enable_reranking=enable_reranking,
+            rerank_top_k=rerank_top_k,
+            show_scores=show_scores,
+            show_justification=show_justification
+        )
         
     async def get_processing_status(self, repo_name: str) -> Dict[str, Any]:
         """Get processing status for a repository."""

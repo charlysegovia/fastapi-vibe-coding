@@ -14,36 +14,25 @@ class ChunkingStrategies:
         self.overlap_size = 100  # Overlap between chunks
         
     def create_dense_chunks(self, content: str, file_info: Dict[str, Any], repo_info: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Create dense chunks using paragraph and sentence-based chunking."""
+        """Create dense chunks using paragraph and sentence-based chunking, and ALWAYS add a file_complete chunk."""
         try:
             chunks = []
-            
             # Strategy 1: Paragraph-based chunking
             paragraph_chunks = self._chunk_by_paragraphs(content, file_info, repo_info)
             chunks.extend(paragraph_chunks)
-            
             # Strategy 2: Sentence-based chunking for smaller paragraphs
             sentence_chunks = self._chunk_by_sentences(content, file_info, repo_info)
             chunks.extend(sentence_chunks)
-            
             # Remove duplicates and filter by size
             unique_chunks = self._deduplicate_chunks(chunks)
             filtered_chunks = [chunk for chunk in unique_chunks if self._is_valid_chunk_size(chunk['text'])]
-            
-            # If no chunks created, create a single chunk for the entire content
-            if not filtered_chunks and len(content.strip()) >= self.min_chunk_size:
-                chunk_id = str(uuid.uuid4())
-                filtered_chunks.append({
-                    'chunk_id': chunk_id,
-                    'text': content.strip(),
-                    'chunk_type': 'full_content',
-                    'chunk_index': 0,
-                    'metadata': self._create_metadata(file_info, repo_info, 'dense')
-                })
-            
+            # ALWAYS add a file_complete chunk for dense
+            file_complete_chunk = self._create_file_chunk(content, file_info, repo_info)
+            file_complete_chunk['chunk_type'] = 'file_complete'  # Different type for dense
+            file_complete_chunk['metadata'] = self._create_metadata(file_info, repo_info, 'dense')
+            filtered_chunks.append(file_complete_chunk)
             logging.info(f"Created {len(filtered_chunks)} dense chunks for {file_info['path']}")
             return filtered_chunks
-            
         except Exception as e:
             logging.error(f"Error creating dense chunks for {file_info['path']}: {e}")
             return []

@@ -340,8 +340,10 @@ class MilvusDualService:
         collection.flush()
         logging.info(f"Inserted {len(chunks)} simple sparse chunks")
     
-    async def search_hybrid(self, query: str, top_k: int = 10) -> Dict[str, Any]:
-        """Perform hybrid search using both dense and sparse collections."""
+    async def search_hybrid(self, query: str, top_k: int = 10, enable_reranking: bool = True, 
+                          rerank_top_k: int = 5, show_scores: bool = True, 
+                          show_justification: bool = True) -> Dict[str, Any]:
+        """Perform hybrid search using both dense and sparse collections with optional re-ranking."""
         try:
             # Generate dense embedding for query
             query_embedding = await get_embedding(query)
@@ -368,13 +370,62 @@ class MilvusDualService:
             # Combine and rank results
             combined_results = self._combine_results(dense_results, sparse_results, top_k)
             
-            return {
-                "query": query,
-                "results": combined_results,
-                "dense_count": len(dense_results),
-                "sparse_count": len(sparse_results),
-                "total_results": len(combined_results)
-            }
+            # Apply re-ranking if enabled
+            if enable_reranking and combined_results:
+                try:
+                    from reranking_service import ReRankingService
+                    reranking_service = ReRankingService()
+                    
+                    reranking_result = await reranking_service.re_rank_results(
+                        query=query,
+                        results=combined_results,
+                        top_k=rerank_top_k,
+                        show_scores=show_scores,
+                        show_justification=show_justification
+                    )
+                    
+                    return {
+                        "query": query,
+                        "results": reranking_result["re_ranked_results"],
+                        "dense_count": len(dense_results),
+                        "sparse_count": len(sparse_results),
+                        "total_results": reranking_result["total_results"],
+                        "re_ranking": {
+                            "enabled": True,
+                            "successful": reranking_result["re_ranking_successful"],
+                            "evaluated_count": reranking_result.get("evaluated_count", 0),
+                            "error": reranking_result.get("error")
+                        }
+                    }
+                    
+                except Exception as e:
+                    logging.error(f"Re-ranking failed, returning original results: {e}")
+                    return {
+                        "query": query,
+                        "results": combined_results[:rerank_top_k],
+                        "dense_count": len(dense_results),
+                        "sparse_count": len(sparse_results),
+                        "total_results": min(len(combined_results), rerank_top_k),
+                        "re_ranking": {
+                            "enabled": True,
+                            "successful": False,
+                            "error": str(e)
+                        }
+                    }
+            else:
+                # Return original results without re-ranking
+                return {
+                    "query": query,
+                    "results": combined_results,
+                    "dense_count": len(dense_results),
+                    "sparse_count": len(sparse_results),
+                    "total_results": len(combined_results),
+                    "re_ranking": {
+                        "enabled": False,
+                        "successful": None,
+                        "error": None
+                    }
+                }
             
         except Exception as e:
             logging.error(f"Hybrid search failed: {e}")

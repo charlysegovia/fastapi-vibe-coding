@@ -26,8 +26,17 @@ async def query_rag(request: Request, body: QueryRequest):
             raise HTTPException(status_code=503, detail=f"Service not ready. Status: {status}")
         
         service = get_load_data_service()
-        search_results = await service.search_hybrid(body.question, body.top_k)
+        search_results = await service.search_hybrid(
+            query=body.question, 
+            top_k=body.top_k,
+            enable_reranking=body.enable_reranking,
+            rerank_top_k=body.rerank_top_k,
+            show_scores=body.show_scores,
+            show_justification=body.show_justification
+        )
         logging.info(f"Hybrid search returned {len(search_results['results'])} results")
+        if search_results.get('re_ranking', {}).get('enabled'):
+            logging.info(f"Re-ranking: {search_results['re_ranking']['successful']}, evaluated: {search_results['re_ranking'].get('evaluated_count', 0)}")
     except Exception as e:
         logging.error(f"Hybrid search failed: {e}")
         raise HTTPException(status_code=500, detail=f"Search failed: {e}")
@@ -46,7 +55,10 @@ async def query_rag(request: Request, body: QueryRequest):
             "file_language": result['file_language'],
             "author": result['author'],
             "score": result['score'],
-            "search_type": result['search_type']
+            "search_type": result['search_type'],
+            "relevance_score": result.get('relevance_score'),
+            "justification": result.get('justification'),
+            "original_rank": result.get('original_rank')
         })
     
     # Generate answer using OpenAI
@@ -67,7 +79,10 @@ async def query_rag(request: Request, body: QueryRequest):
             file_language=chunk['file_language'],
             author=chunk['author'],
             score=chunk['score'],
-            search_type=chunk['search_type']
+            search_type=chunk['search_type'],
+            relevance_score=chunk.get('relevance_score'),
+            justification=chunk.get('justification'),
+            original_rank=chunk.get('original_rank')
         ))
     
     return QueryResponse(
@@ -76,7 +91,8 @@ async def query_rag(request: Request, body: QueryRequest):
         search_stats={
             "dense_results": search_results['dense_count'],
             "sparse_results": search_results['sparse_count'],
-            "total_results": search_results['total_results']
+            "total_results": search_results['total_results'],
+            "re_ranking": search_results.get('re_ranking', {})
         }
     )
 

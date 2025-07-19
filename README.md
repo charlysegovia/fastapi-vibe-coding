@@ -107,9 +107,9 @@ MAX_FILE_SIZE=1048576  # 1MB in bytes
 ## Running the Application
 
 1. **Start the server**:
-   ```bash
-   uvicorn main:app --reload
-   ```
+```bash
+uvicorn main:app --reload
+```
 
 2. **Access the web interface**:
    - Open your browser and go to: http://localhost:8000/static/index.html
