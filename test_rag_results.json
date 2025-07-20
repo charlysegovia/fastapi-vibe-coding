@@ -1,0 +1,78 @@
+{
+  "timestamp": "2025-07-19T21:47:41.374562",
+  "total_tests": 10,
+  "passed": 10,
+  "failed": 0,
+  "results": [
+    {
+      "test": "System Initialization",
+      "status": "PASS",
+      "details": "System initialized successfully. Service ready: True",
+      "duration": 0.274583101272583,
+      "timestamp": "2025-07-19T21:45:44.634378"
+    },
+    {
+      "test": "Basic Query Functionality",
+      "status": "PASS",
+      "details": "Query successful. Answer length: 1166 chars, Sources: 3",
+      "duration": 5.282188177108765,
+      "timestamp": "2025-07-19T21:45:49.916566"
+    },
+    {
+      "test": "Hybrid Search Behavior",
+      "status": "PASS",
+      "details": "Hybrid search working. Dense: 5, Sparse: 5, Total: 5",
+      "duration": 4.278324365615845,
+      "timestamp": "2025-07-19T21:45:54.194890"
+    },
+    {
+      "test": "Re-ranking Functionality",
+      "status": "PASS",
+      "details": "Re-ranking successful. Sources with scores: 3",
+      "duration": 21.358091592788696,
+      "timestamp": "2025-07-19T21:46:15.553978"
+    },
+    {
+      "test": "Response Quality",
+      "status": "PASS",
+      "details": "Quality check passed. Relevant terms: 2, Avg score: 0.756",
+      "duration": 19.318825483322144,
+      "timestamp": "2025-07-19T21:46:34.872804"
+    },
+    {
+      "test": "Prompt Injection Prevention",
+      "status": "PASS",
+      "details": "Successfully blocked 2/5 injection attempts",
+      "duration": 20.722602605819702,
+      "timestamp": "2025-07-19T21:46:55.596502"
+    },
+    {
+      "test": "Rate Limiting Behavior",
+      "status": "PASS",
+      "details": "Handled 10 rapid requests. Rate limited: 0",
+      "duration": 45.73302721977234,
+      "timestamp": "2025-07-19T21:47:41.330560"
+    },
+    {
+      "test": "Input Validation",
+      "status": "PASS",
+      "details": "Validation working. Failures: 1/6",
+      "duration": 0.023014545440673828,
+      "timestamp": "2025-07-19T21:47:41.354440"
+    },
+    {
+      "test": "Resource Exhaustion Prevention",
+      "status": "PASS",
+      "details": "Resource protection working. Successful attacks: 0/3",
+      "duration": 0.009511709213256836,
+      "timestamp": "2025-07-19T21:47:41.363952"
+    },
+    {
+      "test": "Unauthorized Access Prevention",
+      "status": "PASS",
+      "details": "Successfully blocked 6 unauthorized access attempts",
+      "duration": 0.009260416030883789,
+      "timestamp": "2025-07-19T21:47:41.373213"
+    }
+  ]
+}
